@@ -1,0 +1,115 @@
+<!doctype html>
+<html>
+    <head>
+        <title>Quiz App</title>
+        <style>
+            body {
+                font-family: Arial;
+                max-width: 700px;
+                margin: auto;
+                padding: 20px;
+            }
+
+            button {
+                margin: 5px;
+                padding: 10px 15px;
+                cursor: pointer;
+            }
+
+            #questionBox,
+            #leaderboard {
+                margin-top: 20px;
+            }
+
+            .player {
+                padding: 5px 0;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Real-Time Quiz</h1>
+
+        <input id="name" placeholder="Your Name" />
+        <input id="room" placeholder="Room ID" />
+        <button onclick="joinRoom()">Join Room</button>
+        <button onclick="startQuiz()">Start Quiz</button>
+
+        <div id="status"></div>
+
+        <div id="questionBox"></div>
+
+        <h2>Leaderboard</h2>
+        <div id="leaderboard"></div>
+
+        <script src="/socket.io/socket.io.js"></script>
+        <script>
+            const socket = io();
+
+            let roomId = "";
+
+            function joinRoom() {
+                const username = document.getElementById("name").value;
+                roomId = document.getElementById("room").value;
+
+                socket.emit("join-room", { roomId, username });
+
+                document.getElementById("status").innerText =
+                    "Joined room: " + roomId;
+            }
+
+            function startQuiz() {
+                socket.emit("start-quiz", roomId);
+            }
+
+            socket.on("new-question", (data) => {
+                const q = data.question;
+
+                let html = `
+    <h2>Question ${data.number}/${data.total}</h2>
+    <p>${q.question}</p>
+  `;
+
+                q.options.forEach((option) => {
+                    html += `
+      <button onclick="submitAnswer('${option}')">
+        ${option}
+      </button>
+    `;
+                });
+
+                document.getElementById("questionBox").innerHTML = html;
+            });
+
+            function submitAnswer(answer) {
+                socket.emit("submit-answer", { roomId, answer });
+
+                document.getElementById("questionBox").innerHTML =
+                    "<p>Answer submitted. Waiting for others...</p>";
+            }
+
+            socket.on("players-update", (players) => {
+                let html = "";
+
+                players
+                    .sort((a, b) => b.score - a.score)
+                    .forEach((player) => {
+                        html += `
+        <div class="player">
+          ${player.username} - ${player.score}
+        </div>
+      `;
+                    });
+
+                document.getElementById("leaderboard").innerHTML = html;
+            });
+
+            socket.on("quiz-ended", (players) => {
+                const winner = players.sort((a, b) => b.score - a.score)[0];
+
+                document.getElementById("questionBox").innerHTML =
+                    `<h2>Quiz Finished!</h2>
+     <h3>Winner: ${winner.username}</h3>`;
+            });
+        </script>
+    </body>
+</html>
